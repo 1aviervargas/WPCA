@@ -1,1 +1,8 @@
 # WPCA
+# Robust weighted principal components analysis demodulation algorithm for phase-shifting interferometry
+
+In this work, we present an asynchronous phase-shifting demodulation approach based on the principal component analysis demodulation method that is robust to typical problems as turbulence, vibrations, and temporal instabilities of the optical setup. The method brings together a two-step and a phase-shifting asynchronous demodulation method to share their benefits while reducing their intrinsic limitations. Thus, the proposed approach is based on a two-fold process. First, the modulating phase is estimated from a two-step demodulation approach. Second, this information is used to compute weights to each phase-shifted pattern of the interferogram sequence, which are used in a novel weighted principal component demodulation approach. The proposed technique has been tested with simulated and real interferograms affected by turbulence and vibrations providing very satisfactory results in challenging cases.
+
+Here, we provide the code that reproduces all the results and figures shown in the paper [1]. This software has been tested under Matlab R2018a, R2019b, R2020b. Additionaly, it might be necessary to have instaled the Matlab Image Processing toolbox. To run the different examples, run the script WPCA_demo.m changing the variable 'medida' to values between 1 and 7. The cases medida=1,2,4 reproduce simulated results shown in [1], and medida=5,7 experimental cases.
+
+[1] "Robust weighted principal components analysis demodulation algorithm for phase-shifting interferometry", (2020)
