@@ -38,6 +38,7 @@ clc;
 %measure  =1; (simulation)
 %measure = 2; (simulation)
 %measure = 4; (simulation)
+%measure = 8; (simulation)
 %measure = 5; (experimental)
 %measure = 7; (experimental)
 
@@ -51,7 +52,7 @@ switch medida
         %Patterns to two step demodulation:
         num1 = 1;
         num2 = 2;
-        
+
         %Number of rows and columns of the simulated interferograms
         N = 450;     
         
@@ -113,7 +114,7 @@ switch medida
         %Patterns to two step demodulation:
         num1 = 1;
         num2 = 2;
-        
+
         %Number of rows and columns of the simulated interferograms
         N = 450;     
         
@@ -167,7 +168,7 @@ switch medida
         %Patterns to two step demodulation:
         num1 = 1;
         num2 = 2;
-        
+
         %Number of rows and columns of the simulated interferograms
         N = 450;        
         
@@ -218,7 +219,7 @@ switch medida
         %Patterns to two step demodulation:
         num1 = 1;
         num2 = 2;
-        
+
         %Number of rows and columns of the simulated interferograms
         N = 450;        
         
@@ -274,6 +275,73 @@ switch medida
         
         pwRef = mod(P,2*pi);
 
+            
+    case 8
+                
+        %Patterns to two step demodulation:
+        num1 = 1;
+        num2 = 2;
+
+        %Number of rows and columns of the simulated interferograms
+        N = 450;        
+        
+        %Number of simulated fringe patterns
+        num  = 300;
+
+        %Noise level
+        noise = 0.8;
+        
+        %alpha
+        alpha = 1.5;
+               
+        %Phase-steps
+        ps =  rand(1,num)*2*pi;
+        ps(1) = 0;
+        ps(2) = pi/2;
+        
+        %We define the background (a) and modulation (b) maps
+        [X Y]=meshgrid(1:N);
+        X = X-mean2(X);
+        Y = Y-mean2(Y);
+        X = X/max(X(:));
+        Y = Y/max(Y(:));
+        
+        %Calculating actual phase map
+        [Theta R]=cart2pol(X,Y);
+        Z1 = Zernike(5, R(:), Theta(:));
+        Z2 = Zernike(8, R(:), Theta(:));
+        Z3 = Zernike(13, R(:), Theta(:));
+        P = reshape(6*Z1+5*Z2+2*Z3,N,N);
+    
+        a = (X./50);
+        b = exp(-0.5.*(X.^2+Y.^2)./1e4);
+       
+        %Temporal aberration by Zernike Polynomials
+        n = 3;
+        [Theta,R]=cart2pol(X,Y);
+        R = R(:);
+        Theta = Theta(:);
+        R=R./(max(R)+eps);
+        Zpol = reshape(Zernike(3, R, Theta),450,450);
+        clear Theta R s;
+
+        %Varying amplitude
+        f1=10*randn(1,N);
+        f1(1)=0;
+        f1(2)=0;
+        
+        %Processing Mask
+        Mask=(ones(size(X))>0.5);
+        
+        %We compose the different simulated fringe patterns
+        for i=1:num
+            p = (X./50)+b.*(cos(P+ps(i)+f1(i)*Zpol))+noise*randn(N).*b;
+            I(:,:,i) = p.*Mask;
+        end
+        
+        pwRef = mod(P,2*pi);
+
+        
     case 5
         
         %Patterns to two step demodulation:
@@ -296,7 +364,7 @@ switch medida
         pwRef = pcaDemod(I,K,Mask);
         pwRef = mod(pwRef,2*pi);
         P = Unwrap_TIE_DCT_Iter(pwRef);
-        
+       
     case 6
           
         %Patterns to two step demodulation:
@@ -351,7 +419,10 @@ end
 %% Analysis
 
 %Two step phase demodulation
+tic
 [pw,Mod,PC] = kreisDemod(I(:,:,num1),I(:,:,num2),Mask);
+t1=toc;
+fprintf('elapsed time Kreis is: %.2f seconds. \n',t1')
 
 seed = PC;
 
@@ -359,10 +430,32 @@ seed = PC;
 K = 2;
 
 %Weighted PCA results
-[pw2,Mod2,PC2,V2,W2]=pcaWDemod(I,K,Mask,seed,alpha);
+tic
+[pw2,Mod,PC2,V2,W2]=pcaWDemod(I,K,Mask,seed,alpha);
+t2=toc;
+fprintf('elapsed time PCA is: %.2f seconds. \n',t2')
 
 %PCA results
-[pw3,Mod3,PC3,V3,Xm3]=pcaDemod(I,K,Mask);
+tic
+[pw3,Mod,PC3,V3,Xm3]=pcaDemod(I,K,Mask);
+t3=toc;
+fprintf('elapsed time WPCA is: %.2f seconds. \n',t3')
+
+%GS results
+tic
+% We normalize the patterns for the two-step methods that require
+% normalized patters
+In1 = normalizePattern(I(:,:,num1));
+In2 = normalizePattern(I(:,:,num2));
+[pw4,Mod]=gsDemod(In1,In2,Mask);
+t4=toc;
+fprintf('elapsed time GS is: %.2f seconds. \n',t4')
+
+%OF results
+tic
+[pw5,Mod]=rofDemod(I(:,:,num1),I(:,:,num2),5,0.3,35);
+t5=toc;
+fprintf('elapsed time OF is: %.2f seconds. \n',t5')
 
 pw = mod(pw,2*pi);
 pw = pw-min(pw(:));
@@ -370,21 +463,29 @@ pw = 2*pi*pw./max(pw(:));
 
 pw2 = mod(pw2,2*pi);
 pw3 = mod(pw3,2*pi);
+pw4 = mod(pw4,2*pi);
+pw5 = mod(pw5,2*pi);
 
 %Correct the piston
 pw    = adjustPiston(pwRef,pw);
 pw2   = adjustPiston(pwRef,pw2);
 pw3   = adjustPiston(pwRef,pw3);
+pw4   = adjustPiston(pwRef,pw4);
+pw5   = adjustPiston(pwRef,pw5);
 
 %Unwrap the phases
 up=Unwrap_TIE_DCT_Iter(pw);
 up2=Unwrap_TIE_DCT_Iter(pw2);
 up3=Unwrap_TIE_DCT_Iter(pw3);
+up4=Unwrap_TIE_DCT_Iter(pw4);
+up5=Unwrap_TIE_DCT_Iter(pw5);
 
 %Remove a possible remaining piston term
 up  = up-mean2(up);
 up2 = up2-mean2(up2);
 up3 = up3-mean2(up3);
+up4 = up4-mean2(up4);
+up5 = up5-mean2(up5);
 
 %% Visualization
 %In the cases medida 5, 6 and 7, we do not have a reference phase so we cannot
@@ -395,7 +496,9 @@ if (medida ~= 5) && (medida ~= 6) && (medida ~= 7)
     rms  = sqrt(mean2((P-up).^2));
     rms2 = sqrt(mean2((P-up2).^2));
     rms3 = sqrt(mean2((P-up3).^2));
-    
+    rms4 = sqrt(mean2((P-up4).^2));
+    rms5 = sqrt(mean2((P-up5).^2));
+
     figure,
     multi = cat(3,pwRef,pw,pw2,pw3);
     montage(multi,'Size', [2 2],'DisplayRange', [0 6]);
@@ -403,12 +506,25 @@ if (medida ~= 5) && (medida ~= 6) && (medida ~= 7)
         
     figure,
     multi2 = cat(3,P,up,up2,up3);
-    montage(multi2,'Size', [2 2],'DisplayRange',[-20 35]);
+    %montage(multi2,'Size', [2 2],'DisplayRange',[-20 35]);
+    montage(multi2,'Size', [2 2],'DisplayRange',[-15 60]);
     colorbar
     colormap jet
    
+    %UP - Kreis
+    %UP2 - WPCA
+    %UP4 - GS
+    %UP5 - OF
+    figure,
+    %multi3 = cat(3,up,up2,up4,up5);
+    %montage(multi3,'Size', [1 4],'DisplayRange',[-20 35]);
+    multi3 = cat(3,pw,pw2,pw4,pw5);
+    montage(multi3,'Size', [1 4],'DisplayRange',[0 2*pi]);
+    colorbar
+    colormap jet
+    
     fprintf("\n");
-    fprintf("RMS GS: %4.2f - RMS WPCA: %4.2f - RMW PCA: %4.2f\n",rms,rms2,rms3);
+    fprintf("RMS Kreis: %4.2f - RMS WPCA: %4.2f - RMW PCA: %4.2f - RMW GS: %4.2f - RMW OF: %4.2f\n",rms,rms2,rms3,rms4,rms5);
     fprintf("------------- \n");
     
     figure,
@@ -424,8 +540,8 @@ else
     multi = cat(3,pw,pw2,pw3);
     montage(multi,'Size', [1 3],'DisplayRange', [0 5]);
     colorbar
-    
-    
+      
+        
     if (medida == 7)
         dr = [-60 160];
     else
@@ -435,6 +551,19 @@ else
     figure,
     multi2 = cat(3,up,up2,up3);
     montage(multi2,'Size', [1 3],'DisplayRange', dr);
+    colorbar
+    colormap jet
+    
+    %UP - Kreis
+    %UP2 - WPCA
+    %UP4 - GS
+    %UP5 - OF
+    figure,
+    multi3 = cat(3,up,up2,up4,up5);
+    %montage(multi3,'Size', [1 4],'DisplayRange',[-20 35]);
+    montage(multi3,'Size', [1 4],'DisplayRange',[-80 120]);
+    %multi3 = cat(3,pw,pw2,pw4,pw5);
+    %montage(multi3,'Size', [1 4],'DisplayRange',[0 2*pi]);
     colorbar
     colormap jet
     
